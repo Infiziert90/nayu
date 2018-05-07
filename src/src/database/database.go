@@ -22,7 +22,6 @@ const COLLECTION = "uploads"
 
 var (
 	db     *mgo.Database
-	Dao    = UploadDAO{"localhost", "filehoster"}
 	UsedUC = make(map[string]bool)
 )
 

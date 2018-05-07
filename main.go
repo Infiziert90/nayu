@@ -14,7 +14,16 @@ import (
 	"os"
 	"src/database"
 	"strings"
+	"bytes"
+	"io/ioutil"
+	"encoding/json"
 )
+
+type Config struct {
+	Password      string `json:"password"`
+	ServerAddress string `json:"server_address"`
+	DBName        string `json:"db_name"`
+}
 
 type Template struct {
 	templates *template.Template
@@ -32,12 +41,25 @@ type Resp struct {
 var (
 	StatusOK     = RespStatus{"Success"}
 	StatusFailed = RespStatus{"Failed"}
-	db           = database.Dao
-	hashedPW     = []byte{0, 6, 77, 79, 43, 92, 249, 222, 5, 108, 128, 233, 198, 50, 52, 30, 99, 130, 88, 232, 54, 252, 94, 214, 33, 172, 46, 156, 253, 215, 195, 171}
+	db 			   database.UploadDAO
+	hashedPW       []byte
 )
 
 func (t *Template) Render(w io.Writer, name string, data interface{}, c echo.Context) error {
 	return t.templates.ExecuteTemplate(w, name, data)
+}
+
+func init() {
+	file, err := ioutil.ReadFile("config.json")
+	if err != nil {
+		fmt.Printf("File error: %v\n", err)
+		os.Exit(1)
+	}
+
+	var obj Config
+	json.Unmarshal(file, &obj)
+	db = database.UploadDAO{obj.ServerAddress, obj.DBName}
+	hashedPW = argon2.IDKey([]byte(obj.Password), []byte(""), 1, 64*1024, 4, 32)
 }
 
 func main() {
@@ -65,7 +87,7 @@ func index(c echo.Context) error {
 
 func postUpload(c echo.Context) error {
 	pw := c.FormValue("password")
-	if pw == "" || string(hashedPW) != string(argon2.IDKey([]byte(pw), []byte(""), 1, 64*1024, 4, 32)) {
+	if pw == "" || !bytes.Equal(hashedPW, argon2.IDKey([]byte(pw), []byte(""), 1, 64*1024, 4, 32)) {
 		return c.JSON(http.StatusBadRequest, StatusFailed)
 	}
 
